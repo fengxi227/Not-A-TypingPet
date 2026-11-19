@@ -1,0 +1,1074 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>打字桌宠</title>
+<style>
+  :root { --bg:#1c1c1e; --fg:#f2f2f7; --panel:#2c2c2e; --accent:#ff9f68; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif; }
+  body { overflow:hidden; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+  input,textarea,select { -webkit-user-select:text; user-select:text; font-family:inherit; }
+  .screen { position:fixed; inset:0; display:none; flex-direction:column;
+    padding:max(14px,env(safe-area-inset-top)) 16px max(14px,env(safe-area-inset-bottom)); }
+  .screen.on { display:flex; }
+
+  /* ---------- setup ---------- */
+  #setup { overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #setup > * { flex:none; }
+  #setup h1 { font-size:22px; margin:6px 0 4px; }
+  #setup p.hint { margin:0 0 14px; font-size:13px; opacity:.65; line-height:1.5; }
+  .sec { margin:24px 0 6px; }
+  .sec h2 { font-size:17px; margin:0 0 4px; }
+  .sec p { margin:0; font-size:12.5px; opacity:.6; line-height:1.55; }
+  .grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .slot { position:relative; background:var(--panel); border-radius:14px; height:128px;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; border:2px dashed #48484a; }
+  .slot.filled { border:2px solid transparent; }
+  .slot img { max-width:100%; max-height:100%; object-fit:contain; }
+  .slot .name { position:absolute; left:8px; top:6px; font-size:12px; background:rgba(0,0,0,.55); color:#fff;
+    padding:2px 8px; border-radius:8px; z-index:1; }
+  .plus { font-size:30px; opacity:.4; }
+  .slot input[type=file] { position:absolute; inset:0; opacity:0; width:100%; height:100%; }
+  .row { display:flex; gap:10px; margin-top:14px; }
+  .row.sticky { position:sticky; bottom:0; z-index:5; padding-top:14px; margin-top:10px;
+    background:linear-gradient(to bottom, transparent, var(--bg) 32%); }
+  .btn { flex:1; border:0; border-radius:14px; padding:14px 10px; font-size:16px; font-weight:600;
+    color:var(--fg); background:var(--panel); position:relative; overflow:hidden; text-align:center; }
+  .btn.primary { background:var(--accent); color:#1c1c1e; }
+  .btn:disabled { opacity:.35; }
+  .btn input[type=file] { position:absolute; inset:0; opacity:0; width:100%; height:100%; }
+
+  #clist { margin-top:10px; }
+  .cact { display:flex; gap:10px; background:var(--panel); border-radius:14px; padding:10px; margin-bottom:10px; }
+  .cact .thumb { position:relative; flex:none; width:88px; height:88px; border-radius:10px; overflow:hidden;
+    border:2px dashed #48484a; display:flex; align-items:center; justify-content:center; background:rgba(128,128,128,.1); }
+  .cact .thumb.filled { border-color:transparent; }
+  .cact .thumb img { max-width:100%; max-height:100%; object-fit:contain; }
+  .cact .thumb input[type=file] { position:absolute; inset:0; opacity:0; width:100%; height:100%; }
+  .cact .fields { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .fld { width:100%; min-width:0; border:0; outline:0; border-radius:9px; padding:8px 10px; font-size:16px;
+    background:rgba(128,128,128,.2); color:var(--fg); }
+  .fld::placeholder { color:var(--fg); opacity:.35; }
+  .cact .line { display:flex; gap:8px; align-items:center; }
+  .cact select.fld { flex:1; padding:8px 6px; }
+  .mini { flex:none; border:0; border-radius:9px; padding:8px 12px; font-size:14px; font-weight:600;
+    background:rgba(128,128,128,.25); color:var(--fg); }
+  .mini.warn { background:#d9483b; color:#fff; }
+  .addrow { display:flex; gap:10px; margin-top:4px; }
+
+  /* ---------- stage ---------- */
+  #stage { padding-top:max(8px,env(safe-area-inset-top)); }
+  .topbar { display:flex; align-items:center; gap:8px; height:36px; flex:none; }
+  .topbar .sp { flex:1; }
+  .chip { border:0; background:rgba(128,128,128,.25); color:inherit; border-radius:18px; padding:0 13px;
+    font-size:13px; height:34px; white-space:nowrap; }
+  .chip.off { opacity:.45; }
+  .chip.on-chip { background:var(--accent); color:#1c1c1e; font-weight:700; }
+  .pet { flex:1; min-height:0; position:relative; display:flex; align-items:center; justify-content:center; }
+  .pet img { position:absolute; max-width:100%; max-height:100%; object-fit:contain; display:none;
+    pointer-events:none; -webkit-user-drag:none; }
+  .pet img.show { display:block; }
+
+  .notes { display:none; flex:1; min-height:0; flex-direction:column; margin-top:6px; }
+  #stage.notes-open .notes { display:flex; }
+  #stage.notes-open .pet { flex:0 0 34%; }
+  .nhead { display:flex; align-items:center; gap:8px; flex:none; margin-bottom:6px; }
+  .nhead .t { flex:1; font-size:14px; font-weight:700; opacity:.8; }
+  .nlist { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex;
+    flex-direction:column; gap:8px; padding-bottom:4px; }
+  .empty-n { opacity:.45; font-size:13px; text-align:center; padding:22px 10px; line-height:1.6; }
+  .card { flex:none; background:var(--panel); border-radius:14px; padding:9px 12px 6px; border-left:4px solid var(--accent); }
+  .card.new { animation:pop .25s ease-out; }
+  @keyframes pop { from { opacity:0; transform:translateY(-8px) scale(.97); } to { opacity:1; transform:none; } }
+  .card textarea { display:block; width:100%; border:0; outline:0; resize:none; background:transparent; color:var(--fg);
+    font-size:16px; line-height:24px; padding:0; margin:0; overflow:hidden; height:24px; }
+  .card .meta { display:flex; justify-content:space-between; align-items:center; margin-top:2px; font-size:11px; opacity:.55; }
+  .card .x { border:0; background:none; color:inherit; font-size:12px; padding:5px 0 5px 10px; }
+  .card .x.warn { color:#ff6b5b; font-weight:700; }
+
+  .typebar { flex:none; margin-top:8px; }
+  .typebar textarea { width:100%; display:block; border:0; outline:0; resize:none; height:46px; max-height:110px;
+    border-radius:16px; padding:11px 16px; font-size:16px; line-height:24px;
+    background:var(--panel); color:var(--fg); }
+  .typebar textarea::placeholder { color:var(--fg); opacity:.45; }
+
+  .pad { flex:none; display:grid; gap:10px; margin-top:10px; }
+  .small { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .cpad { display:grid; grid-template-columns:repeat(auto-fit,minmax(84px,1fr)); gap:10px; max-height:116px; overflow-y:auto; }
+  .cpad:empty { display:none; }
+  .big { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .key { border:0; border-radius:18px; background:var(--panel); color:var(--fg); font-weight:700;
+    display:flex; align-items:center; justify-content:center; touch-action:none;
+    transition:transform .05s, background .05s; }
+  .key.s { height:56px; font-size:22px; }
+  .key.c { height:48px; font-size:15px; padding:0 8px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; display:block; line-height:48px; text-align:center; }
+  .key.b { height:min(22vh,150px); font-size:34px; }
+  .key.down { transform:scale(.96); background:var(--accent); color:#1c1c1e; }
+  .key small { font-size:12px; font-weight:500; margin-left:6px; opacity:.7; }
+  #stage.typing .pad, #stage.notes-open .pad { display:none !important; }
+
+  .toast { position:fixed; left:50%; top:max(54px,calc(env(safe-area-inset-top) + 46px)); transform:translateX(-50%); max-width:84%; z-index:60;
+    background:rgba(0,0,0,.78); color:#fff; padding:7px 14px; border-radius:14px; font-size:13px;
+    opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .toast.on { opacity:1; }
+
+  .pchips { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .pchip { border:0; border-radius:18px; padding:8px 14px; font-size:15px; background:var(--panel); color:var(--fg); max-width:100%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pchip.cur { background:var(--accent); color:#1c1c1e; font-weight:700; }
+  .btn.warn { background:#d9483b; color:#fff; }
+  .chip #roleName { display:inline-block; max-width:6.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
+  .sheet { position:fixed; inset:0; z-index:50; display:none; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.5); }
+  .sheet.on { display:flex; }
+  .sheet-panel { width:100%; max-width:560px; max-height:82%; overflow-y:auto; background:var(--panel); border-radius:22px 22px 0 0;
+    padding:18px 16px max(18px,env(safe-area-inset-bottom)); }
+  .sheet-h { font-size:17px; font-weight:700; margin-bottom:12px; }
+  .sheet-info { font-size:13px; opacity:.65; margin:0 0 4px; word-break:break-all; line-height:1.5; }
+  .sheet-panel .btn { display:block; width:100%; margin-top:10px; text-decoration:none; background:rgba(128,128,128,.22); }
+  .sheet-panel .btn.primary { background:var(--accent); }
+  .prow { display:flex; align-items:center; gap:12px; width:100%; border:0; border-radius:14px; padding:8px 12px 8px 8px; margin-bottom:8px;
+    background:rgba(128,128,128,.18); color:var(--fg); font-size:16px; text-align:left; }
+  .prow.cur { outline:2px solid var(--accent); }
+  .prow .ph { flex:none; width:48px; height:48px; border-radius:9px; background:rgba(128,128,128,.18); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .prow .ph img { max-width:100%; max-height:100%; object-fit:contain; }
+  .prow .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cact.base .thumb { width:76px; height:76px; }
+  .bname { display:flex; flex-direction:column; gap:2px; }
+  .bname b { font-size:16px; }
+  .bname span { font-size:12px; opacity:.6; line-height:1.4; }
+  .hl { font-size:14px; opacity:.7; white-space:nowrap; }
+  .fld.hd { width:72px; flex:none; text-align:center; padding:8px 4px; }
+  .cact .line .mini:last-child { margin-left:auto; }
+  body.light { --bg:#f5f1e8; --fg:#2b2b2b; --panel:#e4dccb; }
+</style>
+</head>
+<body>
+
+<!-- ================= 设置页 ================= -->
+<div id="setup" class="screen on">
+  <h1>🐾 打字桌宠</h1>
+  <div class="sec" style="margin-top:8px">
+    <h2>🎭 角色</h2>
+    <p>每个角色有自己的基础动作图、自定义动作和各动作的停留时间，在游玩页点左上角可以一键切换。小笔记本和偏好所有角色共用。</p>
+  </div>
+  <div class="pchips" id="pchips"></div>
+  <div class="addrow" style="margin-top:10px">
+    <input class="fld" id="pname" maxlength="16" placeholder="当前角色的名字" autocomplete="off">
+  </div>
+  <div class="addrow">
+    <button class="btn" id="pNew">＋ 新角色</button>
+    <button class="btn" id="pDup">复制当前</button>
+    <button class="btn" id="pDel">删除</button>
+  </div>
+  <div class="sec" style="margin-top:18px">
+    <h2>💾 备份与迁移</h2>
+    <p>导出的备份文件包含图片、自定义动作和触发词，以及全部笔记。拿到别的设备上点「导入备份」即可，导入的角色会作为新角色添加，笔记会合并，不会覆盖现有内容。</p>
+  </div>
+  <div class="addrow">
+    <button class="btn" id="expOne">导出当前角色</button>
+    <button class="btn" id="expAll">导出全部角色</button>
+  </div>
+  <div class="addrow">
+    <label class="btn">导入备份
+      <input type="file" id="impFile">
+    </label>
+  </div>
+  <div class="sec" style="margin-top:22px">
+    <h2>🖼 基础动作</h2>
+    <p>只有「待机」是必选的，其余都可以不做：没有图的动作会自动跳过（比如没做删除图，按退格就当作普通敲击；只做了一只手，就会和待机交替）。每个动作都能单独设置停留时间，单位是秒。也可以用下面的「一次选多张」，按 待机→左手→右手→问号→感叹号→删除→回车 的顺序填入。图片只在本机使用，不会上传。</p>
+  </div>
+  <div id="slots"></div>
+  <div class="row">
+    <label class="btn">一次选多张（按顺序填入）
+      <input type="file" id="multi" accept="image/*" multiple>
+    </label>
+  </div>
+
+  <div class="sec">
+    <h2>✨ 自定义动作</h2>
+    <p>想加多少个都行：选一张图，再给它设「触发」——打出这个字母、字或词，桌宠就会切到这张图。留空则只能点屏幕按键触发。触发可写多个，用空格分开，例如 <b>a 喵 哈哈</b>；想用空格键触发就写 <b>空格</b>。自定义触发优先于内置的问号、感叹号和左右手。</p>
+  </div>
+  <div id="clist"></div>
+  <div class="addrow">
+    <button class="btn" id="addBtn">＋ 添加动作</button>
+    <label class="btn">批量加图
+      <input type="file" id="batch" accept="image/*" multiple>
+    </label>
+  </div>
+
+  <div class="row sticky">
+    <button class="btn primary" id="startBtn" disabled>开始玩</button>
+  </div>
+</div>
+
+<!-- ================= 游玩页 ================= -->
+<div id="stage" class="screen">
+  <div class="topbar">
+    <button class="chip" id="roleBtn">🎭 <span id="roleName">角色 1</span></button>
+    <button class="chip" id="noteBtn">📒 <span id="noteCnt">0</span></button>
+    <span class="sp"></span>
+    <button class="chip" id="speedBtn" title="动作节奏">⏱ 中</button>
+    <button class="chip" id="bgBtn" title="背景">🌓</button>
+    <button class="chip" id="padBtn" title="屏幕按键">⌨️</button>
+    <button class="chip" id="setBtn" title="设置">⚙️</button>
+  </div>
+  <div class="pet" id="pet"></div>
+
+  <div class="notes" id="notes">
+    <div class="nhead">
+      <span class="t">碎碎念</span>
+      <button class="mini" id="recBtn">回车记录：开</button>
+      <button class="mini" id="copyBtn">复制全部</button>
+    </div>
+    <div class="nlist" id="nlist"></div>
+  </div>
+
+  <div class="typebar">
+    <textarea id="typer" rows="1" placeholder="点这里，用键盘打字 ⌨️　回车记成小卡片" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send"></textarea>
+  </div>
+  <div class="pad" id="pad">
+    <div class="small">
+      <div class="key s" data-id="q">？</div>
+      <div class="key s" data-id="ex">！</div>
+      <div class="key s" data-id="del">⌫</div>
+      <div class="key s" data-id="enter">↵</div>
+    </div>
+    <div class="cpad" id="cpad"></div>
+    <div class="big">
+      <div class="key b" data-id="left">左<small>手</small></div>
+      <div class="key b" data-id="right">右<small>手</small></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="sheet" id="sheet"><div class="sheet-panel" id="sheetP"></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const newId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+const KEYS = [
+  {id:'idle',  name:'待机'},
+  {id:'left',  name:'左手'},
+  {id:'right', name:'右手'},
+  {id:'q',     name:'问号'},
+  {id:'ex',    name:'感叹号'},
+  {id:'del',   name:'删除'},
+  {id:'enter', name:'回车'},
+];
+const BASE_DESC = {
+  idle:'没打字时显示',
+  left:'打字时左右手自动交替',
+  right:'打字时左右手自动交替',
+  q:'打出 ? 或 ？ 时',
+  ex:'打出 ! 或 ！ 时',
+  del:'按退格键时',
+  enter:'按回车键时',
+};
+const BH_DEF = { left:0.26, right:0.26, q:0.45, ex:0.45, del:0.45, enter:0.45 };
+const bhold = { ...BH_DEF };    // 基础动作的停留时间（秒），每个角色各存一份
+const clampHold = (v, d) => {
+  v = parseFloat(v);
+  if (!isFinite(v) || v <= 0) return d;
+  return Math.min(10, Math.max(0.05, Math.round(v * 100) / 100));
+};
+
+const blobs = {};   // id -> Blob（内置 + 自定义）
+const urls  = {};   // id -> objectURL
+let custom = [];    // 自定义动作 {id,name,trig,hold,tl}
+let presets = [];   // 角色 {id,name}
+let curP = '';      // 当前角色 id；图片键为 "角色id/槽位id"
+let notes  = [];    // 笔记卡片，最新的在最前 {id,text,ts,edited}
+const prefs = { speedIdx:1, light:false, padHidden:false, notesOpen:false, recEnter:true };
+
+/* ---------- 本地存储（IndexedDB；失败就静默忽略，重选即可） ---------- */
+let dbp = null;
+function db(){
+  if (dbp) return dbp;
+  dbp = new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open('typing-pet', 2);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        if (!d.objectStoreNames.contains('img'))  d.createObjectStore('img');
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta');
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    } catch(e){ rej(e); }
+  });
+  return dbp;
+}
+async function idb(store, mode, run){
+  try {
+    const d = await db();
+    return await new Promise((res, rej) => {
+      const t = d.transaction(store, mode);
+      const rq = run(t.objectStore(store));
+      t.oncomplete = () => res(rq ? rq.result : undefined);
+      t.onerror = t.onabort = () => rej(t.error);
+    });
+  } catch(e){ return undefined; }
+}
+const imgPut = (k, b) => idb('img',  'readwrite', s => s.put(b, k));
+const imgDel = k      => idb('img',  'readwrite', s => s.delete(k));
+const imgGet = k      => idb('img',  'readonly',  s => s.get(k));
+const kvPut = (k, v)  => idb('meta', 'readwrite', s => s.put(v, k));
+const kvGet = k       => idb('meta', 'readonly',  s => s.get(k));
+const kvDel = k       => idb('meta', 'readwrite', s => s.delete(k));
+
+const serCustom = () => custom.map(({id, name, trig, hold}) => ({id, name, trig, hold}));
+let scTimer = null;
+const saveCustom = () => {            // 记下是哪个角色、当时的数据，切换角色后也不会写串
+  const pid = curP, data = serCustom();
+  clearTimeout(scTimer); scTimer = setTimeout(() => kvPut('custom:' + pid, data), 250);
+};
+const saveNotes  = debounce(() => kvPut('notes', notes), 250);
+const savePrefs  = debounce(() => kvPut('prefs', prefs), 250);
+let bhTimer = null;
+const saveBH = () => {
+  const pid = curP, data = { ...bhold };
+  clearTimeout(bhTimer); bhTimer = setTimeout(() => kvPut('bh:' + pid, data), 250);
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && curP) { kvPut('custom:' + curP, serCustom()); kvPut('bh:' + curP, { ...bhold }); kvPut('notes', notes); kvPut('prefs', prefs); kvPut('presets', presets); }
+});
+
+/* ---------- 设置页：内置 7 格 ---------- */
+const slotsEl = $('#slots');
+const baseHd = {};
+function refreshBase(){ for (const k in baseHd) baseHd[k].value = String(bhold[k]); }
+KEYS.forEach(k => {
+  const d = document.createElement('div');
+  d.className = 'cact base'; d.dataset.base = k.id;
+  d.innerHTML = `<div class="thumb" id="thumb-${k.id}"><span class="plus">＋</span><input type="file" accept="image/*"></div>
+    <div class="fields">
+      <div class="bname"><b>${k.name}${k.id === 'idle' ? '（必选）' : ''}</b><span>${BASE_DESC[k.id]}</span></div>
+      ${k.id === 'idle' ? '' : `<div class="line"><span class="hl">停留</span><input class="fld hd" inputmode="decimal" autocomplete="off"><span class="hl">秒</span><button class="mini clr">清除图片</button></div>`}
+    </div>`;
+  d.querySelector('input[type=file]').addEventListener('change', e => {
+    const f = e.target.files[0]; if (f) setImage(k.id, f);
+    e.target.value = '';
+  });
+  if (k.id !== 'idle') {
+    const hd = d.querySelector('.hd'); baseHd[k.id] = hd; hd.value = String(bhold[k.id]);
+    hd.addEventListener('change', () => { bhold[k.id] = clampHold(hd.value, bhold[k.id]); hd.value = String(bhold[k.id]); saveBH(); });
+    d.querySelector('.clr').addEventListener('click', () => {
+      delete blobs[k.id]; if (urls[k.id]) URL.revokeObjectURL(urls[k.id]); delete urls[k.id];
+      imgDel(curP + '/' + k.id); refreshSlot(k.id); refreshStart();
+    });
+  }
+  slotsEl.appendChild(d);
+});
+
+function setImage(id, blob){
+  blobs[id] = blob;
+  if (urls[id]) URL.revokeObjectURL(urls[id]);
+  urls[id] = URL.createObjectURL(blob);
+  imgPut(curP + '/' + id, blob);
+  refreshSlot(id); refreshStart();
+}
+function refreshSlot(id){
+  const el = document.getElementById('slot-' + id) || document.getElementById('thumb-' + id);
+  if (!el) return;
+  const old = el.querySelector('img'); if (old) old.remove();
+  const plus = el.querySelector('.plus');
+  if (urls[id]) {
+    const im = document.createElement('img'); im.src = urls[id];
+    el.insertBefore(im, el.firstChild);
+    el.classList.add('filled'); plus.style.display = 'none';
+  } else {
+    el.classList.remove('filled'); plus.style.display = '';
+  }
+}
+function refreshStart(){ $('#startBtn').disabled = !blobs.idle; }
+
+$('#multi').addEventListener('change', e => {
+  [...e.target.files].slice(0, 7).forEach((f, i) => setImage(KEYS[i].id, f));
+  e.target.value = '';
+});
+$('#startBtn').addEventListener('click', startStage);
+
+/* ---------- 设置页：自定义动作 ---------- */
+function parseTrig(s){
+  return (s || '').split(/[\s,，、]+/).filter(Boolean).map(t => t === '空格' ? ' ' : t.toLowerCase());
+}
+function makeCustomEl(a){
+  const d = document.createElement('div');
+  d.className = 'cact'; d.dataset.id = a.id;
+  d.innerHTML = `<div class="thumb" id="thumb-${a.id}"><span class="plus">＋</span><input type="file" accept="image/*"></div>
+    <div class="fields">
+      <input class="fld nm" maxlength="12" placeholder="动作名，如：开心" autocomplete="off">
+      <input class="fld tr" placeholder="触发：字母/字/词，空格分隔" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <div class="line">
+        <span class="hl">停留</span><input class="fld hd" inputmode="decimal" autocomplete="off"><span class="hl">秒</span>
+        <button class="mini rm">删除</button>
+      </div>
+    </div>`;
+  const nm = d.querySelector('.nm'), tr = d.querySelector('.tr'), hd = d.querySelector('.hd'), rm = d.querySelector('.rm');
+  nm.value = a.name; tr.value = a.trig; hd.value = String(a.hold);
+  d.querySelector('input[type=file]').addEventListener('change', e => {
+    const f = e.target.files[0]; if (f) setImage(a.id, f);
+    e.target.value = '';
+  });
+  nm.addEventListener('input', () => { a.name = nm.value; saveCustom(); });
+  tr.addEventListener('input', () => { a.trig = tr.value; a.tl = parseTrig(tr.value); saveCustom(); });
+  hd.addEventListener('change', () => { a.hold = clampHold(hd.value, a.hold); hd.value = String(a.hold); saveCustom(); });
+  let t = null;
+  rm.addEventListener('click', () => {
+    if (!rm.classList.contains('warn')) {
+      rm.classList.add('warn'); rm.textContent = '确定删除？';
+      clearTimeout(t); t = setTimeout(() => { rm.classList.remove('warn'); rm.textContent = '删除'; }, 2500);
+      return;
+    }
+    removeCustom(a, d);
+  });
+  return d;
+}
+function addCustom(name, blob){
+  const a = { id:newId(), name:name || ('动作' + (custom.length + 1)), trig:'', hold:0.8, tl:[] };
+  custom.push(a);
+  const el = makeCustomEl(a);
+  $('#clist').appendChild(el);
+  if (blob) setImage(a.id, blob);
+  saveCustom();
+  return el;
+}
+function removeCustom(a, el){
+  const i = custom.indexOf(a); if (i >= 0) custom.splice(i, 1);
+  if (urls[a.id]) URL.revokeObjectURL(urls[a.id]);
+  delete urls[a.id]; delete blobs[a.id];
+  imgDel(curP + '/' + a.id); el.remove(); saveCustom();
+}
+$('#addBtn').addEventListener('click', () => {
+  const el = addCustom();
+  el.scrollIntoView({block:'center', behavior:'smooth'});
+});
+$('#batch').addEventListener('change', e => {
+  [...e.target.files].forEach(f => addCustom(f.name.replace(/\.[^.]+$/, '').slice(0, 12), f));
+  e.target.value = '';
+});
+
+/* ---------- 游玩页：舞台 ---------- */
+const petEl = $('#pet');
+const imgEls = {};
+let stageOn = false;
+
+function startStage(){
+  petEl.innerHTML = '';
+  for (const k in imgEls) delete imgEls[k];
+  [...KEYS, ...custom].forEach(k => {
+    if (!urls[k.id]) return;
+    const im = document.createElement('img'); im.src = urls[k.id]; im.draggable = false; im.dataset.id = k.id;
+    petEl.appendChild(im); imgEls[k.id] = im;
+  });
+  buildCpad(); applyPadVisibility();
+  $('#setup').classList.remove('on'); $('#stage').classList.add('on');
+  stageOn = true; current = null; render(); fitStage();
+}
+$('#setBtn').addEventListener('click', () => {
+  $('#stage').classList.remove('on'); $('#setup').classList.add('on'); stageOn = false;
+});
+
+function applyPadVisibility(){          // 没做图的动作，屏幕上就不放对应的按键
+  document.querySelectorAll('.key[data-id]').forEach(el => { el.style.display = imgEls[el.dataset.id] ? '' : 'none'; });
+  for (const sel of ['.small', '.big']) {
+    const box = document.querySelector(sel);
+    const n = [...box.querySelectorAll('.key[data-id]')].filter(el => el.style.display !== 'none').length;
+    box.style.display = n ? '' : 'none';
+    box.style.gridTemplateColumns = `repeat(${Math.max(n, 1)}, 1fr)`;
+  }
+}
+function buildCpad(){
+  const box = $('#cpad'); box.innerHTML = '';
+  custom.forEach(a => {
+    if (!urls[a.id]) return;
+    const el = document.createElement('div');
+    el.className = 'key s c'; el.textContent = a.name || '动作';
+    el.addEventListener('pointerdown', e => { e.preventDefault(); el.classList.add('down'); fireCustom(a, true); });
+    const end = () => el.classList.remove('down');
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, end));
+    box.appendChild(el);
+  });
+}
+
+/* 顶栏按钮 */
+function applyPrefs(){
+  document.body.classList.toggle('light', prefs.light);
+  $('#pad').style.display = prefs.padHidden ? 'none' : '';
+  $('#padBtn').classList.toggle('off', prefs.padHidden);
+  $('#speedBtn').textContent = '⏱ ' + SPEEDS[prefs.speedIdx].label;
+  $('#recBtn').textContent = '回车记录：' + (prefs.recEnter ? '开' : '关');
+  $('#stage').classList.toggle('notes-open', prefs.notesOpen);
+  $('#noteBtn').classList.toggle('on-chip', prefs.notesOpen);
+  if (prefs.notesOpen) requestAnimationFrame(growAll);
+}
+$('#bgBtn').addEventListener('click', () => { prefs.light = !prefs.light; applyPrefs(); savePrefs(); });
+$('#padBtn').addEventListener('click', () => { prefs.padHidden = !prefs.padHidden; applyPrefs(); savePrefs(); });
+$('#noteBtn').addEventListener('click', () => { prefs.notesOpen = !prefs.notesOpen; applyPrefs(); savePrefs(); });
+$('#recBtn').addEventListener('click', () => { prefs.recEnter = !prefs.recEnter; applyPrefs(); savePrefs(); });
+$('#speedBtn').addEventListener('click', () => {
+  prefs.speedIdx = (prefs.speedIdx + 1) % SPEEDS.length; applyPrefs(); savePrefs();
+});
+
+let toastT = null;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800);
+}
+
+/* ---------- 动作播放：每个动作至少停留一段时间，打得再快也不会鬼畜 ---------- */
+const held = new Map();   // 屏幕按键按住中的输入 -> 差分 id
+let current = null;
+let pulseId = null, pulseT = null;
+let playing = null, playUntil = 0, playingHand = null;
+const queue = [];
+const SPEEDS = [{label:'快', k:.7}, {label:'中', k:1}, {label:'慢', k:1.6}];
+
+function pulse(id, ms, hand){
+  const special = !hand;
+  if (queue.length >= 2) {                  // 最多排 2 个，避免动作落后太多
+    if (!special) return;                   // 打太快：多出来的普通敲击直接忽略，保持左右交替
+    queue.pop();                            // 特殊动作优先，顶掉最后一个
+  }
+  queue.push({ id, hold: ms * SPEEDS[prefs.speedIdx].k, hand: hand || null });
+  pump();
+}
+function pump(){
+  clearTimeout(pulseT);
+  const now = performance.now();
+  if (playing && now < playUntil) { pulseT = setTimeout(pump, playUntil - now); return; }
+  if (queue.length) {
+    const n = queue.shift();
+    playing = n.id; playingHand = n.hand; playUntil = now + n.hold; pulseId = n.id; render();
+    pulseT = setTimeout(pump, n.hold);
+  } else {
+    playing = null; playingHand = null; pulseId = null; render();
+  }
+}
+function render(){
+  const ids = [...held.values()];
+  const want = ids.length ? ids[ids.length - 1] : (pulseId || 'idle');
+  const show = imgEls[want] ? want : 'idle';
+  if (show === current) return;
+  current = show;
+  for (const id in imgEls) imgEls[id].classList.toggle('show', id === show);
+}
+function down(src, id){ held.delete(src); held.set(src, id); render(); }
+function up(src, id){ held.delete(src); setTimeout(render, Math.max(120, (bhold[id] || 0.26) * 1000)); }
+
+/* 内置屏幕按键：按住显示，松手后至少再停留一下 */
+document.querySelectorAll('.key[data-id]').forEach(el => {
+  const id = el.dataset.id;
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); el.classList.add('down'); down('p' + e.pointerId, id);
+  });
+  const end = e => { el.classList.remove('down'); up('p' + e.pointerId, id); };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('pointerleave', end);
+});
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---------- 键盘打字：左右手自动交替 + 自定义触发 ---------- */
+let nextHand = 'left';
+function typeStroke(){
+  if (!imgEls.left && !imgEls.right) return;           // 一只手的图都没有：不演
+  const lastHand = queue.length ? queue[queue.length - 1].hand : playingHand;
+  const hand = lastHand === 'left' ? 'right' : lastHand === 'right' ? 'left' : nextHand;
+  nextHand = hand === 'left' ? 'right' : 'left';
+  const has = !!imgEls[hand];
+  const other = hand === 'left' ? 'right' : 'left';
+  // 只做了一只手：另一只手的时候回到待机，看起来就是一下一下地敲
+  pulse(has ? hand : 'idle', bhold[has ? hand : other] * 1000, hand);
+}
+const lastSpecial = {}, lastCustom = {};
+function fireSpecial(id){           // 删除/回车：keydown 和 input 可能都触发，做个去重
+  const now = performance.now();
+  if (lastSpecial[id] && now - lastSpecial[id] < 35) return;
+  lastSpecial[id] = now;
+  if (imgEls[id]) pulse(id, bhold[id] * 1000);
+  else typeStroke();                // 没做这个动作的图：当作普通敲击
+}
+function fireCustom(a, force){
+  const now = performance.now();
+  if (!force && lastCustom[a.id] && now - lastCustom[a.id] < 80) return;
+  lastCustom[a.id] = now;
+  pulse(a.id, a.hold * 1000);
+}
+function fireChar(ch){
+  if (/[?？]/.test(ch) && imgEls.q) pulse('q', bhold.q * 1000);
+  else if (/[!！]/.test(ch) && imgEls.ex) pulse('ex', bhold.ex * 1000);
+  else typeStroke();
+}
+/* 在「刚输入的内容 added」和「当前全文 value」里找自定义触发，取最长的那个 */
+function findCustom(added, value){
+  const add = (added || '').toLowerCase(), val = (value || '').toLowerCase();
+  let best = null, bl = 0;
+  for (const a of custom) {
+    if (!urls[a.id]) continue;
+    for (const t of a.tl || []) {
+      const ok = [...t].length === 1 ? add.includes(t) : (add.length > 0 && val.endsWith(t));
+      if (ok && t.length > bl) { best = a; bl = t.length; }
+    }
+  }
+  return best;
+}
+function handleText(added, value){
+  const a = findCustom(added, value);
+  if (a) fireCustom(a); else fireChar(added);
+}
+
+/* 给一个输入框接上「打字就有反应」。手机软键盘、蓝牙键盘、中文输入法都走这里 */
+function bindTyping(el, onEnter, onInput){
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Backspace') fireSpecial('del');
+    else if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); onEnter(); }
+  });
+  el.addEventListener('input', e => {
+    const t = e.inputType || '';
+    if (t.startsWith('delete')) { fireSpecial('del'); if (onInput) onInput(); return; }
+    if (t === 'insertLineBreak' || t === 'insertParagraph') { onEnter(); return; }
+    if (onInput) onInput();
+    if (e.isComposing) fireChar(e.data || '');       // 拼音过程中：只做左右手，不匹配触发
+    else handleText(e.data || '', el.value);
+  });
+  el.addEventListener('compositionend', e => {       // 选字上屏后再匹配自定义触发
+    const a = findCustom(e.data || '', el.value);
+    if (a) fireCustom(a);
+  });
+}
+
+/* 底部输入框 */
+const typer = $('#typer');
+function growTyper(){
+  typer.style.height = 'auto';
+  typer.style.height = Math.max(46, Math.min(typer.scrollHeight, 110)) + 'px';
+}
+function submitTyper(){
+  const txt = typer.value.trim();
+  typer.value = ''; growTyper();
+  if (txt && prefs.recEnter) addNote(txt);
+  fireSpecial('enter');
+}
+bindTyping(typer, submitTyper, growTyper);
+typer.addEventListener('focus', () => {
+  $('#stage').classList.add('typing');
+  setTimeout(() => window.scrollTo(0, 0), 50);
+});
+typer.addEventListener('blur', () => $('#stage').classList.remove('typing'));
+
+/* 没点输入框、直接接实体键盘时也能反应 */
+let kbuf = '';
+document.addEventListener('keydown', e => {
+  if (!stageOn || /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); fireSpecial('del'); }
+  else if (e.key === 'Enter') { e.preventDefault(); fireSpecial('enter'); }
+  else if (e.key.length === 1) {
+    e.preventDefault();
+    kbuf = (kbuf + e.key).slice(-24);
+    handleText(e.key, kbuf);
+  }
+});
+window.addEventListener('blur', () => {
+  held.clear(); queue.length = 0; playing = null; pulseId = null; clearTimeout(pulseT); render();
+});
+
+/* ---------- 小笔记本 ---------- */
+const fmtTime = ts => {
+  const d = new Date(ts), p = n => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+function growTa(ta){
+  ta.style.height = 'auto';
+  if (ta.scrollHeight) ta.style.height = ta.scrollHeight + 'px';
+}
+function growAll(){ document.querySelectorAll('#nlist textarea').forEach(growTa); }
+
+function cardEl(n, isNew){
+  const d = document.createElement('div'); d.className = 'card' + (isNew ? ' new' : '');
+  const ta = document.createElement('textarea');
+  ta.rows = 1; ta.value = n.text; ta.maxLength = 500; ta.spellcheck = false;
+  ta.setAttribute('enterkeyhint', 'done'); ta.setAttribute('autocapitalize', 'off'); ta.setAttribute('autocorrect', 'off');
+  const meta = document.createElement('div'); meta.className = 'meta';
+  const tm = document.createElement('span');
+  const setTm = () => { tm.textContent = fmtTime(n.ts) + (n.edited ? ' · 已编辑' : ''); };
+  setTm();
+  const x = document.createElement('button'); x.className = 'x'; x.textContent = '删除';
+  meta.append(tm, x); d.append(ta, meta);
+
+  let prev = n.text, xt = null;
+  ta.addEventListener('focus', () => { prev = n.text; setTimeout(() => window.scrollTo(0, 0), 50); });
+  ta.addEventListener('input', () => { n.text = ta.value; saveNotes(); });
+  ta.addEventListener('blur', () => {
+    const v = ta.value.trim();
+    if (!v) { ta.value = prev; n.text = prev; }          // 清空了就还原，删除请点「删除」
+    else { ta.value = v; n.text = v; if (v !== prev) { n.edited = true; setTm(); } }
+    saveNotes(); growTa(ta);
+  });
+  bindTyping(ta, () => { ta.blur(); fireSpecial('enter'); }, () => growTa(ta));
+  x.addEventListener('click', () => {
+    if (!x.classList.contains('warn')) {
+      x.classList.add('warn'); x.textContent = '再点一次删除';
+      clearTimeout(xt); xt = setTimeout(() => { x.classList.remove('warn'); x.textContent = '删除'; }, 2500);
+      return;
+    }
+    const i = notes.indexOf(n); if (i >= 0) notes.splice(i, 1);
+    saveNotes(); renderNotes();
+  });
+  return d;
+}
+function renderNotes(newIdVal){
+  const list = $('#nlist'); list.innerHTML = '';
+  if (!notes.length) list.innerHTML = '<div class="empty-n">在下面打字，按回车就会记成一张小卡片。<br>点卡片里的字可以直接修改。</div>';
+  notes.forEach(n => list.appendChild(cardEl(n, n.id === newIdVal)));
+  growAll(); list.scrollTop = 0;
+  $('#noteCnt').textContent = notes.length;
+}
+function addNote(text){
+  const n = { id:newId(), text, ts:Date.now(), edited:false };
+  notes.unshift(n); saveNotes(); renderNotes(n.id);
+  toast('已记下：' + text);
+}
+async function copyText(txt){
+  try { await navigator.clipboard.writeText(txt); return true; } catch(e){}
+  try {
+    const ta = document.createElement('textarea'); ta.value = txt;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand('copy'); ta.remove(); return ok;
+  } catch(e){ return false; }
+}
+$('#copyBtn').addEventListener('click', async () => {
+  if (!notes.length) { toast('还没有内容'); return; }
+  const txt = [...notes].reverse().map(n => `[${fmtTime(n.ts)}] ${n.text}`).join('\n');
+  toast((await copyText(txt)) ? `已复制 ${notes.length} 条` : '复制失败，可以长按卡片文字手动复制');
+});
+
+/* ---------- 软键盘弹出时，让舞台只占可见区域，宠物不会被挡住 ---------- */
+function fitStage(){
+  const vv = window.visualViewport; if (!vv) return;
+  const s = $('#stage');
+  s.style.height = vv.height + 'px';
+  s.style.top = vv.offsetTop + 'px';
+  s.style.bottom = 'auto';
+}
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', fitStage);
+  visualViewport.addEventListener('scroll', fitStage);
+  fitStage();
+}
+
+/* ---------- 角色预设：每个角色有自己的 7 张图和自定义动作 ---------- */
+const curPreset = () => presets.find(p => p.id === curP);
+const savePresets = () => kvPut('presets', presets);
+const pLabel = p => (p && p.name) || '未命名';
+
+function renderPresetUI(){
+  const box = $('#pchips'); box.innerHTML = '';
+  presets.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'pchip' + (p.id === curP ? ' cur' : '');
+    b.textContent = pLabel(p);
+    b.addEventListener('click', () => switchPreset(p.id));
+    box.appendChild(b);
+  });
+  const cp = curPreset();
+  if (cp && document.activeElement !== $('#pname')) $('#pname').value = cp.name || '';
+  $('#roleName').textContent = pLabel(cp);
+  $('#pDel').disabled = presets.length < 2;
+}
+$('#pname').addEventListener('input', e => {
+  const cp = curPreset(); if (!cp) return;
+  cp.name = e.target.value.trim().slice(0, 16);
+  savePresets(); renderPresetUI();
+});
+
+function clearState(){
+  for (const k in urls) { URL.revokeObjectURL(urls[k]); delete urls[k]; }
+  for (const k in blobs) delete blobs[k];
+  custom = []; $('#clist').innerHTML = ''; Object.assign(bhold, BH_DEF);
+  KEYS.forEach(k => refreshSlot(k.id));
+  held.clear(); queue.length = 0; playing = null; pulseId = null; clearTimeout(pulseT);
+}
+async function loadPreset(pid){
+  curP = pid; kvPut('cur', pid);
+  const bh = await kvGet('bh:' + pid);
+  Object.assign(bhold, BH_DEF);
+  if (bh && typeof bh === 'object') for (const k in BH_DEF) bhold[k] = clampHold(bh[k], BH_DEF[k]);
+  refreshBase();
+  const c = await kvGet('custom:' + pid);
+  (Array.isArray(c) ? c : []).forEach(x => custom.push({
+    id:String(x.id), name:x.name || '', trig:x.trig || '', hold:clampHold(x.hold, 0.8), tl:parseTrig(x.trig)
+  }));
+  for (const k of KEYS) {
+    const b = await imgGet(pid + '/' + k.id);
+    if (b) { blobs[k.id] = b; urls[k.id] = URL.createObjectURL(b); refreshSlot(k.id); }
+  }
+  for (const a of custom) {
+    $('#clist').appendChild(makeCustomEl(a));
+    const b = await imgGet(pid + '/' + a.id);
+    if (b) { blobs[a.id] = b; urls[a.id] = URL.createObjectURL(b); refreshSlot(a.id); }
+  }
+  refreshStart(); renderPresetUI();
+}
+function goSetup(){
+  $('#stage').classList.remove('on'); $('#setup').classList.add('on'); stageOn = false;
+}
+let switching = false;
+async function switchPreset(pid){
+  if (switching || pid === curP) return;
+  switching = true;
+  try {
+    await kvPut('custom:' + curP, serCustom());      // 先把当前角色存好
+    await kvPut('bh:' + curP, { ...bhold });
+    const wasStage = stageOn;
+    clearState();
+    await loadPreset(pid);
+    if (wasStage) {
+      if (blobs.idle) startStage();
+      else { goSetup(); toast('这个角色还没有待机图，先选一张'); }
+    }
+  } finally { switching = false; }
+}
+async function newPreset(){
+  const pid = 'p' + newId();
+  presets.push({ id:pid, name:'角色 ' + (presets.length + 1) });
+  await savePresets(); await kvPut('custom:' + pid, []);
+  await switchPreset(pid);
+}
+async function dupPreset(){
+  const cp = curPreset(), pid = 'p' + newId();
+  for (const k of KEYS) if (blobs[k.id]) await imgPut(pid + '/' + k.id, blobs[k.id]);
+  for (const a of custom) if (blobs[a.id]) await imgPut(pid + '/' + a.id, blobs[a.id]);
+  await kvPut('custom:' + pid, serCustom());
+  await kvPut('bh:' + pid, { ...bhold });
+  presets.push({ id:pid, name:(cp && cp.name ? cp.name : '角色') + ' 副本' });
+  await savePresets();
+  await switchPreset(pid);
+}
+async function delPreset(){
+  if (presets.length < 2) return;
+  const pid = curP, meta = serCustom();
+  const idx = presets.findIndex(p => p.id === pid);
+  await switchPreset(presets[idx === 0 ? 1 : idx - 1].id);
+  for (const k of KEYS) await imgDel(pid + '/' + k.id);
+  for (const a of meta) await imgDel(pid + '/' + a.id);
+  await kvDel('custom:' + pid);
+  await kvDel('bh:' + pid);
+  presets = presets.filter(p => p.id !== pid);
+  await savePresets(); renderPresetUI();
+}
+$('#pNew').addEventListener('click', newPreset);
+$('#pDup').addEventListener('click', dupPreset);
+let pdT = null;
+$('#pDel').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!b.classList.contains('warn')) {
+    b.classList.add('warn'); b.textContent = '确定删除？';
+    clearTimeout(pdT); pdT = setTimeout(() => { b.classList.remove('warn'); b.textContent = '删除'; }, 2500);
+    return;
+  }
+  clearTimeout(pdT); b.classList.remove('warn'); b.textContent = '删除';
+  delPreset();
+});
+
+/* ---------- 底部弹层：切换角色 / 备份文件 ---------- */
+let sheetUrls = [], sheetTok = 0;
+function openSheet(build){
+  sheetTok++;
+  sheetUrls.forEach(u => URL.revokeObjectURL(u)); sheetUrls = [];
+  const p = $('#sheetP'); p.innerHTML = ''; build(p);
+  $('#sheet').classList.add('on');
+}
+function closeSheet(){ sheetTok++; $('#sheet').classList.remove('on'); }
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+
+async function openRoleSheet(){
+  openSheet(p => { const h = document.createElement('div'); h.className = 'sheet-h'; h.textContent = '切换角色'; p.appendChild(h); });
+  const tok = sheetTok, p = $('#sheetP');
+  for (const pr of presets) {
+    let u = pr.id === curP ? urls.idle : null;
+    if (!u) {
+      const b = await imgGet(pr.id + '/idle');
+      if (tok !== sheetTok) return;
+      if (b) { u = URL.createObjectURL(b); sheetUrls.push(u); }
+    }
+    const row = document.createElement('button'); row.className = 'prow' + (pr.id === curP ? ' cur' : '');
+    const th = document.createElement('div'); th.className = 'ph';
+    if (u) { const im = document.createElement('img'); im.src = u; th.appendChild(im); }
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = pLabel(pr);
+    row.append(th, nm);
+    if (pr.id === curP) { const ck = document.createElement('span'); ck.textContent = '✓'; row.appendChild(ck); }
+    row.addEventListener('click', () => { closeSheet(); switchPreset(pr.id); });
+    p.appendChild(row);
+  }
+  if (tok !== sheetTok) return;
+  const m = document.createElement('button'); m.className = 'btn'; m.textContent = '管理角色 / 备份';
+  m.addEventListener('click', () => { closeSheet(); goSetup(); });
+  p.appendChild(m);
+}
+$('#roleBtn').addEventListener('click', openRoleSheet);
+
+/* ---------- 备份：导出 / 导入（图片以 base64 存进 JSON，笔记一并带上） ---------- */
+function blobToDataURL(b){
+  if (!b.type) b = b.slice(0, b.size, 'image/png');
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
+}
+function dataURLtoBlob(u){
+  const i = u.indexOf(','), mime = u.slice(5, i).split(';')[0] || 'image/png';
+  const bin = atob(u.slice(i + 1)), arr = new Uint8Array(bin.length);
+  for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+  return new Blob([arr], { type:mime });
+}
+const IMG_URL = /^data:image\/[a-z0-9.+-]+;base64,/i;
+
+async function serializePreset(pr){
+  const isCur = pr.id === curP;
+  const get = async id => isCur ? blobs[id] : await imgGet(pr.id + '/' + id);
+  const builtin = {};
+  for (const k of KEYS) { const b = await get(k.id); if (b) builtin[k.id] = await blobToDataURL(b); }
+  const meta = isCur ? serCustom() : ((await kvGet('custom:' + pr.id)) || []);
+  const cus = [];
+  for (const a of meta) {
+    const b = await get(a.id);
+    cus.push({ name:a.name, trig:a.trig, hold:a.hold, img:b ? await blobToDataURL(b) : null });
+  }
+  const holds = isCur ? { ...bhold } : ((await kvGet('bh:' + pr.id)) || {});
+  return { name:pr.name, builtin, holds, custom:cus };
+}
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()); };
+const safeName = s => (s || '未命名').replace(/[\\/:*?"<>|]/g, '_');
+
+async function exportBackup(all){
+  toast('正在打包…');
+  try {
+    await kvPut('custom:' + curP, serCustom());
+    await kvPut('bh:' + curP, { ...bhold });
+    const list = all ? presets.slice() : [curPreset()];
+    const out = { app:'typing-pet', version:1, exportedAt:new Date().toISOString(), presets:[], notes:notes };
+    for (const pr of list) out.presets.push(await serializePreset(pr));
+    const name = `桌宠备份-${all ? '全部角色' : safeName(list[0].name)}-${stamp()}.json`;
+    const file = new File([JSON.stringify(out)], name, { type:'application/json' });
+    openFileSheet(file, all ? `全部 ${list.length} 个角色 + ${notes.length} 条笔记` : `角色「${pLabel(list[0])}」+ ${notes.length} 条笔记`);
+  } catch(e){ toast('打包失败：' + (e && e.message ? e.message : e)); }
+}
+function openFileSheet(file, title){
+  const url = URL.createObjectURL(file);
+  openSheet(p => {
+    const h = document.createElement('div'); h.className = 'sheet-h'; h.textContent = '备份已生成'; p.appendChild(h);
+    const t = document.createElement('p'); t.className = 'sheet-info'; t.textContent = title; p.appendChild(t);
+    const info = document.createElement('p'); info.className = 'sheet-info';
+    info.textContent = file.name + '（' + (file.size / 1048576).toFixed(file.size < 1048576 ? 2 : 1) + ' MB）'; p.appendChild(info);
+    if (navigator.canShare && navigator.canShare({ files:[file] })) {
+      const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = '分享 / 存到「文件」';
+      b.addEventListener('click', async () => {
+        try { await navigator.share({ files:[file], title:file.name }); }
+        catch(e){ if (!e || e.name !== 'AbortError') toast('分享失败，请改用下载'); }
+      });
+      p.appendChild(b);
+    }
+    const a = document.createElement('a'); a.className = 'btn'; a.href = url; a.download = file.name; a.textContent = '下载文件';
+    p.appendChild(a);
+    const c = document.createElement('button'); c.className = 'btn'; c.textContent = '关闭'; c.addEventListener('click', closeSheet);
+    p.appendChild(c);
+  });
+  sheetUrls.push(url);
+}
+async function importBackup(file){
+  let data;
+  try { data = JSON.parse(await file.text()); } catch(e){ toast('这不是有效的备份文件'); return; }
+  if (!data || data.app !== 'typing-pet' || !Array.isArray(data.presets)) { toast('这不是桌宠的备份文件'); return; }
+  toast('正在导入…');
+  let added = 0, nAdded = 0;
+  try {
+    for (const p of data.presets) {
+      if (!p || typeof p !== 'object') continue;
+      const pid = 'p' + newId();
+      for (const k of KEYS) {
+        const u = p.builtin && p.builtin[k.id];
+        if (typeof u === 'string' && IMG_URL.test(u)) await imgPut(pid + '/' + k.id, dataURLtoBlob(u));
+      }
+      const meta = [];
+      for (const c of (Array.isArray(p.custom) ? p.custom : [])) {
+        if (!c || typeof c !== 'object') continue;
+        const id = newId();
+        meta.push({ id, name:String(c.name || '').slice(0, 12), trig:String(c.trig || '').slice(0, 60), hold:clampHold(c.hold, 0.8) });
+        if (typeof c.img === 'string' && IMG_URL.test(c.img)) await imgPut(pid + '/' + id, dataURLtoBlob(c.img));
+      }
+      const holds = {};
+      for (const k in BH_DEF) holds[k] = clampHold(p.holds && p.holds[k], BH_DEF[k]);
+      await kvPut('bh:' + pid, holds);
+      await kvPut('custom:' + pid, meta);
+      presets.push({ id:pid, name:String(p.name || '导入的角色').slice(0, 16) });
+      added++;
+    }
+    if (Array.isArray(data.notes)) {
+      const have = new Set(notes.map(n => n.id));
+      const add = data.notes.filter(n => n && typeof n.text === 'string' && n.text.trim() && !have.has(String(n.id)))
+        .map(n => ({ id:String(n.id || newId()), text:n.text.slice(0, 500), ts:+n.ts || Date.now(), edited:!!n.edited }));
+      if (add.length) { notes = [...notes, ...add].sort((a, b) => b.ts - a.ts); saveNotes(); renderNotes(); }
+      nAdded = add.length;
+    }
+    await savePresets(); renderPresetUI();
+    toast(`已导入 ${added} 个角色、${nAdded} 条新笔记`);
+  } catch(e){ toast('导入失败：' + (e && e.message ? e.message : e)); }
+}
+$('#expOne').addEventListener('click', () => exportBackup(false));
+$('#expAll').addEventListener('click', () => exportBackup(true));
+$('#impFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (f) await importBackup(f);
+});
+
+/* ---------- 启动：读取上次保存的内容（第一次升级时把旧数据迁移成「角色 1」） ---------- */
+async function migrateOld(){
+  const pid = 'p' + newId();
+  const old = await kvGet('custom');
+  const meta = Array.isArray(old) ? old : [];
+  for (const k of KEYS) {
+    const b = await imgGet(k.id);
+    if (b) { await imgPut(pid + '/' + k.id, b); await imgDel(k.id); }
+  }
+  for (const x of meta) {
+    const b = await imgGet(x.id);
+    if (b) { await imgPut(pid + '/' + x.id, b); await imgDel(x.id); }
+  }
+  await kvPut('custom:' + pid, meta);
+  presets = [{ id:pid, name:'角色 1' }];
+  await savePresets(); await kvPut('cur', pid);
+  if (old !== undefined) await kvDel('custom');
+  curP = pid;
+}
+(async () => {
+  const p = await kvGet('prefs');
+  if (p && typeof p === 'object') {
+    Object.assign(prefs, p);
+    if (!SPEEDS[prefs.speedIdx]) prefs.speedIdx = 1;
+  }
+  const n = await kvGet('notes');
+  if (Array.isArray(n)) notes = n;
+
+  const ps = await kvGet('presets');
+  if (Array.isArray(ps) && ps.length) {
+    presets = ps.filter(x => x && x.id);
+    const c = await kvGet('cur');
+    curP = presets.some(x => x.id === c) ? c : presets[0].id;
+  } else {
+    await migrateOld();
+  }
+  await loadPreset(curP);
+  renderNotes(); applyPrefs(); refreshStart();
+  if (blobs.idle) startStage();
+})();
+applyPrefs();
+</script>
+</body>
+</html>
